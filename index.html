@@ -1,0 +1,316 @@
+<!DOCTYPE html>
+<html lang="ja" class="h-full">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Void Runner</title>
+
+  <!-- SDK -->
+  <script src="https://cdn.tailwindcss.com/3.4.17" type="text/javascript"></script>
+
+  <!-- 外部CSS -->
+  <link rel="stylesheet" href="style.css">
+
+  <style>body { box-sizing: border-box; }</style>
+</head>
+
+<body class="h-full">
+  <div id="game-container" style="position:relative;width:100%;height:100%;overflow:hidden">
+    <canvas id="gameCanvas"></canvas>
+
+    <div id="ui-overlay">
+      <div class="hud-top-left" id="inGameHUD" style="display:none">
+        <div class="hud-stat score" id="scoreDisplay">0</div>
+        <div class="hud-stat coins" id="coinDisplay">🪙 0</div>
+        <div class="hud-stat medals" id="medalDisplay">🔘 0</div>
+        <div class="hud-stat pieces" id="piecesDisplay">💎 0</div>
+        <div class="hud-stat combo" id="comboDisplay" style="display:none"></div>
+      </div>
+
+      <div class="hud-top-right" id="inGameHUDRight" style="display:none">
+        <div id="playerStatsPanel" style="background:rgba(0,20,60,.7);border:2px solid #0ff;border-radius:4px;padding:8px;margin-bottom:8px;font-size:11px;color:#0ff;text-shadow:0 0 6px #0ff">
+          <div style="margin-bottom:4px" id="nicknameDisplay">PLAYER</div>
+          <div class="player-level-bar">
+            <div class="player-level-text" id="playerLevelText">LV 1</div>
+            <div class="player-exp-bar-outer">
+              <div class="player-exp-bar-inner" id="playerExpBar" style="width:0%"></div>
+            </div>
+          </div>
+          <div style="font-size:10px;color:#ffd700;margin-top:6px;margin-bottom:2px">
+            🏆 HS: <span id="playerHSDisplay">0</span>
+          </div>
+          <div style="font-size:10px;color:#ffd700">🪙 <span id="playerCoinDisplay">0</span></div>
+          <div style="font-size:10px;color:#c0c0c0">🔘 <span id="playerMedalDisplay">0</span></div>
+        </div>
+
+        <div style="color:#0ff;font-size:14px;text-shadow:0 0 6px #0ff">
+          WAVE <span id="waveDisplay" style="font-size:18px;font-weight:900">1</span>
+        </div>
+        <div class="hp-bar-outer">
+          <div class="hp-bar-inner" id="hpBar" style="width:100%"></div>
+        </div>
+        <div class="hud-stat" id="hpText" style="font-size:13px;margin-top:3px">HP 100</div>
+        <div class="exp-label" id="levelDisplay">ムーブ 1</div>
+        <div class="exp-sub">オーブ 0.00/30</div>
+        <div class="exp-bar-outer">
+          <div class="exp-bar-inner" id="expBar" style="width:0%"></div>
+        </div>
+        <div class="lives-text" id="livesDisplay">❤️ 50/50</div>
+        <div class="lives-bar-outer">
+          <div class="lives-bar-inner" id="livesBar" style="width:100%"></div>
+        </div>
+      </div>
+
+      <div class="boss-hp-container" id="bossHpContainer" style="position:absolute;bottom:70px;left:50%;transform:translateX(-50%);width:50%;max-width:350px;display:none;flex-direction:column;align-items:center;gap:3px">
+        <div style="color:#f44;font-size:14px;font-weight:700;text-shadow:0 0 8px #f44;letter-spacing:2px" id="bossName">⚠ BOSS ⚠</div>
+        <div style="width:100%;height:10px;background:rgba(255,0,0,.15);border:1.5px solid #f44;border-radius:3px;overflow:hidden">
+          <div class="boss-hp-inner" id="bossHpBar" style="width:100%;height:100%;background:linear-gradient(90deg,#f00,#ff4400,#ff0);border-radius:2px;transition:width .15s"></div>
+        </div>
+      </div>
+
+      <div id="tutorialTipBox" style="position:absolute;top:50%;left:50%;transform:translate(-50%,-50%);background:rgba(0,100,200,.9);border:3px solid #0ff;border-radius:8px;padding:20px;text-align:center;display:none;z-index:35;pointer-events:none;max-width:400px">
+        <h4 style="color:#0ff;font-size:18px;text-shadow:0 0 8px #0ff;margin-bottom:10px" id="tipTitle">TIP</h4>
+        <p style="color:#fff;font-size:13px;line-height:1.6" id="tipText"></p>
+      </div>
+
+      <div class="item-slots" id="itemSlots" style="display:none"></div>
+      <div class="skill-bar" id="skillBar" style="display:none">
+        <button class="skill-btn" id="skillHomingBtn" onclick="useSkill('homing')" title="100 ピース">C<br>HOMING</button>
+        <button class="skill-btn" id="skillWaveBtn" onclick="useSkill('wave')" title="500 ピース">V<br>WAVE</button>
+        <button class="skill-btn" id="skillDropBtn" onclick="useSkill('dropup')" title="1000 ピース">B<br>DROP</button>
+        <button class="skill-btn" id="skillBombBtn" onclick="useSkill('megabomb')" title="5000 ピース">N<br>BOMB</button>
+      </div>
+
+      <div class="skill-active-indicator" id="skillIndicator"></div>
+      <div class="wave-announce" id="waveAnnounce"></div>
+      <div class="level-up-flash" id="levelUpFlash"></div>
+      <div class="level-up-popup" id="levelUpPopup">
+        <h3 id="levelUpTitle">LEVEL UP!</h3>
+        <p id="levelUpDesc"></p>
+      </div>
+      <div class="dmg-flash" id="dmgFlash"></div>
+    </div>
+
+<!-- ホーム画面 -->
+<div id="homeScreen" class="home-screen">
+  <div style="position:absolute;top:20px;left:20px;pointer-events:auto">
+    <button class="home-btn" onclick="showRanking()" style="padding:8px 16px;font-size:12px">🏆 ランキング</button>
+  </div>
+
+
+  <div style="position:absolute;top:20px;right:20px;background:rgba(0,20,60,.8);border:2px solid #0ff;border-radius:4px;padding:15px;font-size:12px;color:#0ff;text-shadow:0 0 6px #0ff;text-align:right;min-width:200px">
+    <div style="margin-bottom:8px">
+      <div style="font-size:10px;color:rgba(0,255,255,.6);margin-bottom:3px">NICKNAME</div>
+      <input type="text" id="nicknameInput" placeholder="プレイヤー名" maxlength="20" style="padding:6px;background:rgba(0,50,100,.8);border:1px solid #0ff;color:#0ff;font-family:Orbitron;width:100%;font-size:11px;border-radius:2px" onchange="savePlayerData()">
+    </div>
+    <div class="player-level-bar" style="margin-bottom:8px">
+      <div class="player-level-text" id="homeLevelText">LV 1</div>
+      <div class="player-exp-bar-outer">
+        <div class="player-exp-bar-inner" id="homeExpBar" style="width:0%"></div>
+      </div>
+    </div>
+    <div style="font-size:13px;font-weight:900;margin-bottom:4px">🏆 HS: <span id="homeHighScore">0</span></div>
+    <div style="font-size:12px;color:#ffd700;margin-bottom:4px">🪙 <span id="homeCoinCount">0</span></div>
+    <div style="font-size:12px;color:#c0c0c0">🔘 <span id="homeMedalCount">0</span></div>
+  </div>
+
+<!-- お知らせボックス（左中央） -->
+<div style="position:absolute;top:50%;left:20px;transform:translateY(-50%);background:rgba(0,20,60,.9);border:2px solid #ff0;border-radius:6px;padding:15px;max-width:280px;pointer-events:auto;cursor:pointer;z-index:65" onclick="showNewsOverlay()">
+  <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px">
+    <h4 style="color:#ff0;text-shadow:0 0 6px #ff0;font-size:14px;display:flex;align-items:center;gap:8px;margin:0">
+      📢 お知らせ
+    </h4>
+    <span id="newsNewBadge" style="background:#f00;color:#fff;font-size:10px;padding:3px 8px;border-radius:4px;font-weight:900;display:block">NEW!</span>
+  </div>
+  <div style="color:#aaa;font-size:10px">クリックして詳細を見る</div>
+</div>
+    
+  <div style="position:absolute;bottom:20px;left:20px;background:rgba(0,20,60,.8);border:2px solid #a0f;border-radius:6px;padding:15px;max-width:280px;pointer-events:auto">
+    <h4 style="color:#a0f;margin-bottom:10px;text-shadow:0 0 6px #a0f;font-size:14px">【ゲーム情報】</h4>
+    <button class="home-btn" onclick="showControls()" style="width:100%;padding:8px;font-size:12px;margin-bottom:10px;pointer-events:auto">🎮 操作方法・ルール説明</button>
+    <button class="home-btn" onclick="showTutorialStart()" style="width:100%;padding:8px;font-size:12px;pointer-events:auto">📖 TUTORIAL</button>
+  </div>
+
+  <div style="position:absolute;bottom:20px;right:20px;pointer-events:auto">
+    <button class="home-btn" onclick="showShop()" style="padding:12px 30px;font-size:14px">🏪 SHOP</button>
+  </div>
+
+  <div style="position:absolute;top:50%;left:50%;transform:translate(-50%,-50%);text-align:center;width:100%">
+    <div class="home-title" style="margin-bottom:40px">VOID RUNNER</div>
+    <div class="home-subtitle" style="margin-bottom:50px">
+      最高にエキサイティングなエンドレススペースシューティング<br>大勢の敵の攻撃から生き残れ
+    </div>
+    <button class="btn" onclick="selectDifficulty()" style="padding:20px 60px;font-size:20px;pointer-events:auto">▶ PLAY</button>
+  </div>
+</div>
+
+    <!-- ショップ画面 -->
+    <div id="shopScreen" class="shop-screen" style="display:none">
+      <div class="shop-title">🏪 SHOP</div>
+      <div class="shop-medal-display">
+        <div style="color:#ffd700;font-size:12px">現在のコイン</div>
+        <div class="shop-medal-amount" id="shopCoinDisplay">🪙 0</div>
+      </div>
+      <div class="shop-grid">
+        <div class="shop-item-card">
+          <div class="shop-item-name">❤️ HEAL</div>
+          <div class="shop-item-desc">HP を 50 回復</div>
+          <div class="shop-item-price">50 🪙</div>
+          <button class="shop-buy-btn" onclick="buyShopItem('heal_up')">BUY</button>
+        </div>
+        <div class="shop-item-card">
+          <div class="shop-item-name">❤️ MAX LIFE</div>
+          <div class="shop-item-desc">最大 HP を 20 増加</div>
+          <div class="shop-item-price">100 🪙</div>
+          <button class="shop-buy-btn" onclick="buyShopItem('max_lives')">BUY</button>
+        </div>
+        <div class="shop-item-card">
+          <div class="shop-item-name">⚔️ DAMAGE UP</div>
+          <div class="shop-item-desc">攻撃力を 1 段階向上</div>
+          <div class="shop-item-price">150 🪙</div>
+          <button class="shop-buy-btn" onclick="buyShopItem('damage_up')">BUY</button>
+        </div>
+        <div class="shop-item-card">
+          <div class="shop-item-name">⚡ FIRE RATE</div>
+          <div class="shop-item-desc">射撃速度を 1 段階向上</div>
+          <div class="shop-item-price">150 🪙</div>
+          <button class="shop-buy-btn" onclick="buyShopItem('fire_rate_up')">BUY</button>
+        </div>
+      </div>
+      <button class="shop-back-btn" onclick="hideShop()">BACK</button>
+    </div>
+
+    <!-- 難易度選択 -->
+    <div id="difficultySelect" class="difficulty-select" style="display:none">
+      <h2>SELECT DIFFICULTY</h2>
+      <div class="difficulty-grid">
+        <button class="btn difficulty" onclick="startGameWithDifficulty('easy')">🎮<br>EASY</button>
+        <button class="btn difficulty active" onclick="startGameWithDifficulty('normal')">🎮<br>NORMAL</button>
+        <button class="btn difficulty" onclick="startGameWithDifficulty('hard')">💀<br>HARD</button>
+        <button class="btn difficulty" onclick="startGameWithDifficulty('expert')">🔥<br>EXPERT</button>
+      </div>
+      <button class="btn difficulty" onclick="startGameWithDifficulty('nightmare')" style="grid-column:1/2;width:100%">👿 NIGHTMARE 👿</button>
+      <button class="btn" onclick="cancelDifficulty()" style="width:100%;margin-top:10px;background:linear-gradient(135deg,#666,#333)">CANCEL</button>
+    </div>
+
+    <!-- ゲームオーバー画面 -->
+<div id="gameOverScreen" style="position:absolute;top:0;left:0;width:100%;height:100%;background:linear-gradient(135deg,#000510,#001030);z-index:70;display:none;flex-direction:column;align-items:center;justify-content:center;pointer-events:auto">
+  <h2 style="font-size:60px;color:#ff4444;text-shadow:0 0 18px #f44;margin-bottom:20px;opacity:0;transition:opacity 0.5s" id="gameOverTitle">GAME OVER</h2>
+  
+  <!-- スコア表示を詳細に -->
+  <div style="text-align:center;opacity:0;transition:opacity 0.5s;transition-delay:0.5s" id="finalScore">
+    <div style="font-size:40px;color:#ffd700;text-shadow:0 0 12px #ffd700;margin-bottom:10px" id="totalScore">SCORE: 0</div>
+    <div style="font-size:14px;color:#aaa;margin-bottom:5px">
+      基本スコア: <span style="color:#fff" id="baseScoreText">0</span>
+    </div>
+    <div style="font-size:14px;color:#aaa;margin-bottom:5px">
+      ボーナス倍率: <span style="color:#0ff" id="bonusMultText">×1.0</span>
+    </div>
+    <div style="font-size:14px;color:#aaa">
+      ボーナス: <span style="color:#ffd700" id="bonusScoreText">+0</span>
+    </div>
+  </div>
+  
+  <div id="gameOverRanking" style="margin:20px 0;opacity:0;transition:opacity 0.5s;transition-delay:1s">
+    <h3 style="color:#ffd700;font-size:18px;text-shadow:0 0 8px #ffd700;margin-bottom:10px">🏆 TOP 5 RANKING 🏆</h3>
+    <div id="gameOverRankingList" style="text-align:left"></div>
+  </div>
+  <p id="finalStats" style="color:rgba(255,255,255,.8);font-size:14px;margin-bottom:30px;text-align:center;opacity:0;transition:opacity 0.5s;transition-delay:1.5s"></p>
+  <div style="display:flex;gap:15px;opacity:0;transition:opacity 0.5s;transition-delay:2s" id="gameOverButtons">
+    <button class="btn" onclick="retryGame()">RETRY</button>
+    <button class="btn" onclick="goHome()">HOME</button>
+  </div>
+</div>
+
+<!-- お知らせオーバーレイ -->
+<div id="newsOverlay" class="news-overlay">
+  <div class="news-overlay-box">
+    <h3 style="color:#ff0;text-shadow:0 0 12px #ff0">📢 お知らせ</h3>
+    <div class="news-overlay-content" id="newsOverlayContent">
+      <!-- 最新のお知らせ -->
+      <div class="news-item" style="border-left-color:#0f0">
+        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:4px">
+          <div class="news-date">2025-02-17 | v1.0.1</div>
+          <span style="background:#f00;color:#fff;font-size:8px;padding:2px 6px;border-radius:3px;font-weight:900">NEW!</span>
+        </div>
+        <div class="news-title">バグ修正と仕様変更</div>
+        <div class="news-content">
+          以下の修正と変更を行いました。<br><br>
+          <strong style="color:#0ff">〈バグ修正〉</strong><br>
+          ・一部環境でスキルが発動できない問題を修正。<br>
+          ・スキルを一度しか発動できない問題を修正。<br>
+          ・スキル発動後の見た目の問題を修正。<br><br>
+          <strong style="color:#0ff">〈仕様変更〉</strong><br>
+          スキル発動に関して、スキルを問題なく発動できる場合は緑色、スキル発動後、そのスキルを発動するのに十分なピースがない場合は黄色になるよう仕様を変更しました。
+        </div>
+      </div>
+      
+      <div class="news-item">
+        <div class="news-date">2025-02-16 | v1.0.0</div>
+        <div class="news-title">ゲームリリース!</div>
+        <div class="news-content">VOID RUNNERがリリースされました!エンドレスな宇宙を駆け抜けよう!</div>
+      </div>
+      
+      <div class="news-item">
+        <div class="news-date">2025-02-15 | v0.9.0 (先行体験版)</div>
+        <div class="news-title">チュートリアル追加</div>
+        <div class="news-content">初心者向けのチュートリアルモードを追加しました。</div>
+      </div>
+      
+      <div class="news-item">
+        <div class="news-date">2025-02-14 | v0.8.0 (先行体験版)</div>
+        <div class="news-title">ランキング機能実装</div>
+        <div class="news-content">トップ5のハイスコアを記録できます。</div>
+      </div>
+    </div>
+    <button class="btn" onclick="closeNewsOverlay()" style="width:100%;pointer-events:auto;margin-top:15px">CLOSE</button>
+  </div>
+</div>
+
+<!-- ランキング -->
+<div id="rankingOverlay" class="ranking-overlay">
+  <div class="ranking-box">
+    <h3>🏆 HIGH SCORE RANKING 🏆</h3>
+    <div class="ranking-list" id="rankingList"></div>
+    <button class="btn" onclick="closeRanking()" style="width:100%;pointer-events:auto">CLOSE</button>
+  </div>
+</div>
+
+    <!-- 操作説明 -->
+    <div id="controlsOverlay" class="controls-overlay">
+      <div class="controls-box">
+        <h3>🎮 操作方法・ルール説明</h3>
+        <div class="tutorial-step-title">【基本操作】</div>
+        <p>移動: W/A/S/D キーまたは矢印キー<br>射撃: スペースバー またはマウスクリック</p>
+        <div class="tutorial-step-title">【敵について】</div>
+        <p>画面上から降ってくる敵がいます。敵には様々な種類があります：<br>・通常敵（四角）: 普通の敵<br>・高速敵（三角）: 素早い敵<br>・タンク敵（六角）: HPが多い敵</p>
+        <div class="tutorial-step-title">【コイン・メダル・ピース】</div>
+        <p>敵を倒すとコイン、メダル、ピースが落ちます。<br>・コイン: ゲーム終了後に保存され、ショップで使用可能<br>・メダル: ゲーム終了後に保存される（将来的な機能用）<br>・ピース: ゲーム内のスキルに使用（ゲーム終了後リセット）</p>
+        <div class="tutorial-step-title">【アイテム＆スキル】</div>
+        <p>アイテム（1-5キー）: 🛡️ シールド ⚡ ラピッド 💥 ボム 💚 ヒール ❤️ ライフ<br>スキル（C,V,B,Nキー）: ホーミング（100ピース）ウェーブ（500ピース）ドロップ（1000ピース）メガボム（5000ピース）</p>
+        <div class="tutorial-step-title">【オーブとムーブ】</div>
+        <p>オーブを集めるとムーブレベルが上昇し、能力が強化されます。<br>・ムーブレベルが上がるほど、より強力になります。</p>
+        <div class="tutorial-step-title">【プレイヤーレベル】</div>
+        <p>プレイ後にEXPを獲得し、レベルアップします。<br>・レベルが上がるとスコア倍率が上昇し、コインとメダルを獲得できます。<br>・レベル上限は99です。</p>
+        <button class="btn" onclick="closeControls()" style="width:100%;pointer-events:auto">CLOSE</button>
+      </div>
+    </div>
+
+    <!-- チュートリアル -->
+    <div id="tutorialOverlay" class="tutorial-overlay">
+      <div class="tutorial-box">
+        <h3 id="tutorialPhaseTitle">📖 TUTORIAL</h3>
+        <p id="tutorialPhaseDesc" style="text-align:center;color:#0ff;margin-bottom:15px;font-size:14px"></p>
+        <p id="tutorialPhaseMsg" style="text-align:center"></p>
+        <div style="color:#ffd700;font-size:16px;font-weight:900;margin-bottom:15px;margin-top:15px">
+          敵撃破数: <span id="tutorialKillCount">0</span> / <span id="tutorialKillTarget">20</span>
+        </div>
+        <button class="btn" onclick="skipTutorial()" style="width:100%;pointer-events:auto">SKIP TUTORIAL</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- 外部JS -->
+  <script src="script.js"></script>
+</body>
+</html>
